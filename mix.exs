@@ -12,7 +12,7 @@ defmodule Router.Mixfile do
   def application do
     [
       mod: { Router, [] },
-      applications: [ :cowboy, :exlager ]
+      applications: [ :cowboy, :exlager, :httpotion ]
     ]
   end
 
