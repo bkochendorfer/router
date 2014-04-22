@@ -12,7 +12,7 @@ defmodule Router do
     ])
 
     :cowboy.start_http(
-      :http, 500, [ip: {127,0,0,1}, port: 9080], [env: [dispatch: dispatch]]
+      :http, 6000, [ip: {127,0,0,1}, port: 9080], [env: [dispatch: dispatch]]
     )
     Router.Supervisor.start_link
   end

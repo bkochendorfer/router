@@ -9,24 +9,24 @@ defmodule Router.Routes do
     {:ok, req, :undefine}
   end
 
-  def handle(req, state) do
+  # If more than three backends respond down bubble up an error page
+  def handle(req, state, acc) when acc >= 3 do
+    {:ok, req} = :cowboy_req.reply(500, [], Router.Cache.render_error_page , req)
+  end
+
+  def handle(req, state, acc \\ 0) do
     { _, url, headers, method, host, body, host_routed } = request_data(req)
     case route_request(url, method, headers, body) do
       {:ok, response} ->
         {:ok, req} = :cowboy_req.reply(response.status_code, [], response.body, req)
       {:error, _error} ->
         set_bad_backend(host_routed)
-        {:ok, error} = Router.Cache.render_error_page
-        {:ok, req} = :cowboy_req.reply(500, [], error , req)
-      end
+        handle(req, acc + 1)
+    end
     {:ok, req, state}
   end
 
   def terminate(_reason, _request, _state), do: :ok
-
-  defp set_bad_backend(host) do
-    Router.Cache.set_bad_backend(host)
-  end
 
   defp request_data(req) do
     { host, _req } = :cowboy_req.host(req)
@@ -88,6 +88,10 @@ defmodule Router.Routes do
         log_route_error url
         {:error, "Unroutable"}
     end
+  end
+
+  defp set_bad_backend(host) do
+    Router.Cache.set_bad_backend(host)
   end
 
   defp log(log_line) do

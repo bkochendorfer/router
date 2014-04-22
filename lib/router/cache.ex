@@ -10,7 +10,7 @@ defmodule Router.Cache do
   end
 
   def render_error_page do
-    File.read("public/500.html")
+    {:ok, file} = File.read("public/500.html")
+    file
   end
-
 end
