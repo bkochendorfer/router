@@ -1,24 +1,22 @@
-defmodule Router.Routes do
+defmodule Router.Handler do
   require Lager
 
   @behaviour :cowboy_http_handler
 
   def init(_type, req, _opts) do
-    Redis.start
-    HTTPotion.start
     {:ok, req, :undefine}
   end
 
   # If more than three backends respond down bubble up an error page
   def handle(req, state, acc) when acc >= 3 do
-    {:ok, req} = :cowboy_req.reply(500, [], Router.Cache.render_error_page , req)
+    {:ok, req} = :cowboy_req.reply(500, [], render_error_page , req)
   end
 
   def handle(req, state, acc \\ 0) do
     { _, url, headers, method, host, body, host_routed } = request_data(req)
     case route_request(url, method, headers, body) do
-      {:ok, response} ->
-        {:ok, req} = :cowboy_req.reply(response.status_code, [], response.body, req)
+      {:ok, {{version, status, reasonphrase}, headers, body} } ->
+         {:ok, req} = :cowboy_req.reply(status, headers, body, req)
       {:error, _error} ->
         set_bad_backend(host_routed)
         handle(req, acc + 1)
@@ -49,27 +47,44 @@ defmodule Router.Routes do
     host <> path <> "?" <> querystring
   end
 
-  defp get_app_for(host) do
-    routed_host = Redis.lrange(host, 0, -1) |> Enum.shuffle |> List.first
-    case Router.Cache.bad_backend?(routed_host) do
-      :undefined -> routed_host
-      _ -> get_app_for(host)
+  defp format_url(url) do
+    case String.downcase(url) do
+      <<"http://"::utf8, _::binary>> -> url
+      <<"https://"::utf8, _::binary>> -> url
+      _ ->
+        {:ok, url} = "http://" <> url |> String.to_char_list
+        url
     end
   end
 
-  defp route_request(url, method, headers, body \\ "") when method == "GET" do
-    try do
-      resp = HTTPotion.get url, headers
-      {:ok, resp}
-    rescue
-      e ->
-        log_route_error url
-        {:error, "Unroutable"}
+  defp get_app_for(host, acc) when acc == 5 do
+    {:ok, req} = :cowboy_req.reply(500, [], render_error_page)
+  end
+
+  defp get_app_for(host, acc \\ []) do
+    routed_host = Redis.lrange(host, 0, -1) |> Enum.shuffle |> List.first
+    case Cache.Client.bad?(routed_host) do
+      :not_found -> routed_host
+      :found -> get_app_for(host, acc)
     end
+  end
+
+  # TODO: Convert everything httpc with a helper or something
+  defp route_request(url, method, headers, _body \\ "") when method == "GET" do
+    # try do
+      url2 = format_url(url)
+      {:ok, {{version, status, reasonphrase}, headers, body}} = :httpc.request url2
+      {:ok, {{version, status, reasonphrase}, headers, body}}
+    # rescue
+    # e ->
+        #log_route_error url
+        #{:error, "Unroutable"}
+    #end
   end
 
   defp route_request(url, method, headers, body) when method == "POST" do
     try do
+      url2 = format_url(url)
       resp = HTTPotion.post url, body, headers, [timeout: 1000]
       {:ok, resp}
     rescue
@@ -90,8 +105,13 @@ defmodule Router.Routes do
     end
   end
 
+  def render_error_page do
+    {:ok, file} = File.read("public/500.html")
+    file
+  end
+
   defp set_bad_backend(host) do
-    Router.Cache.set_bad_backend(host)
+    Cache.Client.set(host)
   end
 
   defp log(log_line) do

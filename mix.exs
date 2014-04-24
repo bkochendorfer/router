@@ -12,14 +12,15 @@ defmodule Router.Mixfile do
   def application do
     [
       mod: { Router, [] },
-      applications: [ :cowboy, :exlager, :httpotion ]
+      applications: [ :cowboy, :exlager, :redis, :inets ]
     ]
   end
 
   defp deps do
     [
-      {:httpotion, "0.2.3", github: "myfreeweb/httpotion"},
+      # {:httpotion, "0.2.3", github: "myfreeweb/httpotion"},
       {:cowboy, "~> 0.9", github: "extend/cowboy"},
+      # {:httpoison, github: "edgurgel/httpoison"},
       {:redis, "~> 1.1.0", github: "timbuchwaldt/elixir-redis"},
       {:exlager, ref: "2a4b002dfe34abf1b03c9d26a3ebe2e101437f51", github: "khia/exlager"}
     ]
