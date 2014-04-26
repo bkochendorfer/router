@@ -13,7 +13,7 @@ defmodule Router do
       [env: [dispatch: dispatch]]
     )
 
-    # The client should maybe be it's own OTP app as well
+    # The Cache client should be it's own OTP app as well
     Cache.Client.start
     Redis.start_link
     Router.Supervisor.start_link

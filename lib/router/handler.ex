@@ -1,5 +1,6 @@
 defmodule Router.Handler do
   require Lager
+  require :cowboy_req, as: R
 
   @behaviour :cowboy_http_handler
 
@@ -9,17 +10,17 @@ defmodule Router.Handler do
 
   # If more than three backends respond down bubble up an error page
   def handle(req, state, acc) when acc >= 3 do
-    {:ok, req} = :cowboy_req.reply(500, [], render_error_page , req)
+    {:ok, req} = R.reply(500, [], render_error_page , req)
   end
 
   def handle(req, state, acc \\ 0) do
     { _, url, headers, method, host, body, host_routed } = request_data(req)
     case route_request(url, method, headers, body) do
       {:ok, {{version, status, reasonphrase}, headers, body} } ->
-         {:ok, req} = :cowboy_req.reply(status, headers, body, req)
+         {:ok, req} = R.reply(status, headers, body, req)
       {:error, _error} ->
         set_bad_backend(host_routed)
-        handle(req, acc + 1)
+        handle(req, state, acc + 1)
     end
     {:ok, req, state}
   end
@@ -27,12 +28,12 @@ defmodule Router.Handler do
   def terminate(_reason, _request, _state), do: :ok
 
   defp request_data(req) do
-    { host, _req } = :cowboy_req.host(req)
-    { method, _ }  = :cowboy_req.method(req)
-    { headers, _ } = :cowboy_req.headers(req)
-    { path, _ } = :cowboy_req.path(req)
-    { querystring, _ } = :cowboy_req.qs(req)
-    { _, body, _ } = :cowboy_req.body(req)
+    { host, _req }      = R.host(req)
+    { method, _ }       = R.method(req)
+    { headers, _ }      = R.headers(req)
+    { path, _ }         = R.path(req)
+    { querystring, _ }  = R.qs(req)
+    { _, body, _ }      = R.body(req)
     host_routed = get_app_for(host)
     url = build_url(host_routed, path, querystring)
     log "Routing #{host} to #{url}"
@@ -58,7 +59,7 @@ defmodule Router.Handler do
   end
 
   defp get_app_for(host, acc) when acc == 5 do
-    {:ok, req} = :cowboy_req.reply(500, [], render_error_page)
+    {:ok, req} = R.reply(500, [], render_error_page)
   end
 
   defp get_app_for(host, acc \\ []) do
