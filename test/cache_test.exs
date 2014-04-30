@@ -1,7 +1,6 @@
 defmodule CacheTest do
   use ExUnit.Case
   alias Cache.Client
-  alias Cache.Server
 
   setup do
     Client.start
@@ -31,4 +30,8 @@ defmodule CacheTest do
     assert Client.delete "127.2.1.1" == {:not_found}
   end
 
+  test "Clears the cache" do
+    :timer.sleep(1500)
+    assert Client.get_all == []
+  end
 end

@@ -1,11 +1,14 @@
 defmodule Cache.Server do
   use GenServer.Behaviour
 
+  @interval 15000
+
   def start_link(initial_cache) do
     :gen_server.start_link {:global, :cache_server}, __MODULE__, initial_cache, []
   end
 
   def init(initial_cache) do
+    :erlang.send_after(@interval, Kernel.self, {:clear_cache, []})
     {:ok, initial_cache}
   end
 
@@ -34,6 +37,12 @@ defmodule Cache.Server do
   def handle_call(:get_all, _from, cache) do
     {:reply, cache, cache}
   end
+
+  def handle_info({:clear_cache, new_cache}, cache) do
+    :erlang.send_after(@interval, Kernel.self, {:clear_cache, []})
+    {:noreply, new_cache}
+  end
+
 end
 
 defmodule Cache.Client do
@@ -57,5 +66,4 @@ defmodule Cache.Client do
   def get_all do
     :gen_server.call({:global, :cache_server}, :get_all)
   end
-
 end
